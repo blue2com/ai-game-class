@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI로 게임 고치기</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    background: #eef2f7; min-height: 100vh; color: #222;
+    display: flex; flex-direction: column; align-items: center; padding: 40px 16px;
+  }
+  h1 { margin-bottom: 8px; }
+  p.sub { color: #666; margin-bottom: 28px; text-align: center; }
+  .games { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; width: min(640px, 100%); }
+  .game { background: #fff; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+  .game .icon { font-size: 3rem; }
+  .game h2 { margin: 8px 0 16px; }
+  .game a { display: block; margin-top: 8px; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; }
+  .play { background: #4a6cf7; color: #fff; }
+  .down { background: #f0f0f0; color: #333; }
+  .steps { margin-top: 32px; background: #fff; border-radius: 16px; padding: 24px; width: min(640px, 100%); line-height: 1.9; }
+  .steps h3 { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+  <h1>🎮 AI로 게임 고치기</h1>
+  <p class="sub">게임을 해보고, 파일을 받아서 AI에게 고쳐 달라고 해봐요!</p>
+
+  <div class="games">
+    <div class="game">
+      <div class="icon">✌️</div>
+      <h2>가위바위보</h2>
+      <a class="play" href="rps.html">▶ 플레이</a>
+      <a class="down" href="rps.html" download>⬇ 파일 받기</a>
+    </div>
+    <div class="game">
+      <div class="icon">🧩</div>
+      <h2>스도쿠</h2>
+      <a class="play" href="sudoku.html">▶ 플레이</a>
+      <a class="down" href="sudoku.html" download>⬇ 파일 받기</a>
+    </div>
+  </div>
+
+  <div class="steps">
+    <h3>📝 이렇게 해보세요</h3>
+    1. <b>⬇ 파일 받기</b>를 눌러 html 파일을 저장해요<br>
+    2. AI 채팅창에 파일을 <b>첨부</b>해요<br>
+    3. "배경을 파란색으로 바꿔줘"처럼 <b>한 줄로 요청</b>해요<br>
+    4. 받은 코드를 저장하고 <b>더블클릭</b>해서 확인해요
+  </div>
+</body>
+</html>

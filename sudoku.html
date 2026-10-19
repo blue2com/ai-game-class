@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스도쿠</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    background: #eef2f7; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 16px; color: #222;
+  }
+  h1 { margin-bottom: 12px; }
+  .controls { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
+  .controls button, .controls select {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid #bbb; background: #fff;
+    font-size: 1rem; cursor: pointer;
+  }
+  .controls button:hover { background: #e6ecff; }
+  .info { margin-bottom: 10px; font-size: 1rem; color: #555; }
+  #board {
+    display: grid; grid-template-columns: repeat(9, 1fr);
+    width: min(450px, 92vw); aspect-ratio: 1;
+    border: 3px solid #222; background: #fff;
+  }
+  .cell {
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(1rem, 5vw, 1.6rem); border: 1px solid #ccc;
+    cursor: pointer; user-select: none;
+  }
+  .cell.fixed { font-weight: bold; color: #222; background: #f4f4f4; cursor: default; }
+  .cell.user { color: #2a5bd7; }
+  .cell.related { background: #eaf0ff; }
+  .cell.same { background: #cdd9ff; }
+  .cell.selected { background: #9fb6ff; }
+  .cell.error { color: #e33; background: #ffe3e3; }
+  .cell:nth-child(9n+3), .cell:nth-child(9n+6) { border-right: 2px solid #222; }
+  .cell:nth-child(n+19):nth-child(-n+27),
+  .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #222; }
+  .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 12px; width: min(450px, 92vw); }
+  .numpad button { padding: 12px 0; font-size: 1.3rem; border-radius: 8px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  .numpad button:hover { background: #e6ecff; }
+  .msg { margin-top: 14px; font-size: 1.3rem; font-weight: bold; color: #2ecc71; min-height: 1.6rem; }
+</style>
+</head>
+<body>
+<h1>🧩 스도쿠</h1>
+<div class="controls">
+  <select id="level">
+    <option value="30">쉬움</option>
+    <option value="40" selected>보통</option>
+    <option value="50">어려움</option>
+  </select>
+  <button id="newGame">새 게임</button>
+  <button id="check">정답 확인</button>
+  <button id="solve">정답 보기</button>
+</div>
+<div class="info">⏱ <span id="timer">00:00</span> · 실수 <span id="mistakes">0</span></div>
+<div id="board"></div>
+<div class="numpad" id="numpad"></div>
+<div class="msg" id="msg"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  let solution = [], puzzle = [], current = [], selected = -1, mistakes = 0;
+  let seconds = 0, timerId = null;
+
+  // ---------- 퍼즐 생성 ----------
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function canPlace(g, idx, n) {
+    const r = Math.floor(idx / 9), c = idx % 9;
+    const br = r - r % 3, bc = c - c % 3;
+    for (let i = 0; i < 9; i++) {
+      if (g[r * 9 + i] === n || g[i * 9 + c] === n) return false;
+      if (g[(br + Math.floor(i / 3)) * 9 + bc + i % 3] === n) return false;
+    }
+    return true;
+  }
+
+  // 백트래킹으로 빈칸을 채움
+  function fill(g) {
+    const idx = g.indexOf(0);
+    if (idx === -1) return true;
+    for (const n of shuffle([1,2,3,4,5,6,7,8,9])) {
+      if (canPlace(g, idx, n)) {
+        g[idx] = n;
+        if (fill(g)) return true;
+        g[idx] = 0;
+      }
+    }
+    return false;
+  }
+
+  function newGame() {
+    solution = Array(81).fill(0);
+    fill(solution);
+    puzzle = solution.slice();
+    const holes = Number($("level").value);
+    shuffle([...Array(81).keys()]).slice(0, holes).forEach(i => puzzle[i] = 0);
+    current = puzzle.slice();
+    selected = -1; mistakes = 0; seconds = 0;
+    $("mistakes").textContent = 0;
+    $("msg").textContent = "";
+    clearInterval(timerId);
+    timerId = setInterval(tick, 1000);
+    tick(true);
+    render();
+  }
+
+  function tick(reset) {
+    if (!reset) seconds++;
+    const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const s = String(seconds % 60).padStart(2, "0");
+    $("timer").textContent = `${m}:${s}`;
+  }
+
+  // ---------- 화면 그리기 ----------
+  function render() {
+    const board = $("board");
+    board.innerHTML = "";
+    const sr = Math.floor(selected / 9), sc = selected % 9;
+    const selVal = selected >= 0 ? current[selected] : 0;
+
+    current.forEach((v, i) => {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      const r = Math.floor(i / 9), c = i % 9;
+      if (puzzle[i]) cell.classList.add("fixed");
+      else if (v) cell.classList.add("user");
+      if (selected >= 0) {
+        const sameBox = Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3);
+        if (r === sr || c === sc || sameBox) cell.classList.add("related");
+        if (selVal && v === selVal) cell.classList.add("same");
+        if (i === selected) cell.classList.add("selected");
+      }
+      if (v && !puzzle[i] && v !== solution[i]) cell.classList.add("error");
+      cell.textContent = v || "";
+      cell.addEventListener("click", () => { selected = i; render(); });
+      board.appendChild(cell);
+    });
+  }
+
+  function input(n) {
+    if (selected < 0 || puzzle[selected]) return;
+    current[selected] = n;
+    if (n && n !== solution[selected]) {
+      mistakes++;
+      $("mistakes").textContent = mistakes;
+    }
+    render();
+    if (current.every((v, i) => v === solution[i])) {
+      clearInterval(timerId);
+      $("msg").textContent = `🎉 완성! 기록 ${$("timer").textContent}`;
+    }
+  }
+
+  // ---------- 숫자 패드 / 키보드 ----------
+  for (let n = 1; n <= 9; n++) {
+    const b = document.createElement("button");
+    b.textContent = n;
+    b.onclick = () => input(n);
+    $("numpad").appendChild(b);
+  }
+  const erase = document.createElement("button");
+  erase.textContent = "⌫";
+  erase.onclick = () => input(0);
+  $("numpad").appendChild(erase);
+
+  document.addEventListener("keydown", e => {
+    if (e.key >= "1" && e.key <= "9") input(Number(e.key));
+    else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") input(0);
+    else if (selected >= 0) {
+      const move = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 }[e.key];
+      if (move) {
+        const next = selected + move;
+        if (next >= 0 && next < 81) { selected = next; render(); e.preventDefault(); }
+      }
+    }
+  });
+
+  $("newGame").onclick = newGame;
+  $("check").onclick = () => {
+    const empty = current.filter(v => !v).length;
+    const wrong = current.filter((v, i) => v && v !== solution[i]).length;
+    $("msg").style.color = wrong ? "#e33" : "#2ecc71";
+    $("msg").textContent = wrong ? `틀린 칸 ${wrong}개` : `지금까지 모두 정답! 남은 칸 ${empty}개`;
+  };
+  $("solve").onclick = () => {
+    current = solution.slice();
+    clearInterval(timerId);
+    $("msg").style.color = "#555";
+    $("msg").textContent = "정답을 공개했어요";
+    render();
+  };
+
+  newGame();
+</script>
+</body>
+</html>

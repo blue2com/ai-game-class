@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가위바위보</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    color: #333;
+  }
+  .card {
+    background: #fff; border-radius: 20px; padding: 32px 24px;
+    width: min(440px, 92vw); text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25);
+  }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .score { display: flex; justify-content: space-around; margin: 20px 0; font-size: 1.1rem; }
+  .score b { display: block; font-size: 2rem; }
+  .arena { display: flex; justify-content: space-around; align-items: center; margin: 20px 0; }
+  .hand { font-size: 4rem; width: 100px; height: 100px; line-height: 100px; }
+  .hand.shake { animation: shake .5s; }
+  @keyframes shake { 0%,100%{transform:translateY(0)} 25%,75%{transform:translateY(-15px)} 50%{transform:translateY(0)} }
+  .vs { font-weight: bold; color: #999; }
+  .label { font-size: .9rem; color: #777; }
+  .result { font-size: 1.5rem; font-weight: bold; min-height: 2rem; margin: 10px 0 20px; }
+  .win { color: #2ecc71; } .lose { color: #e74c3c; } .draw { color: #f39c12; }
+  .buttons { display: flex; gap: 12px; justify-content: center; }
+  .buttons button {
+    font-size: 2.5rem; width: 90px; height: 90px; border: none; border-radius: 50%;
+    background: #f0f0f0; cursor: pointer; transition: transform .15s, background .15s;
+  }
+  .buttons button:hover { transform: scale(1.1); background: #e0e0ff; }
+  .buttons button:disabled { opacity: .5; cursor: default; transform: none; }
+  .reset { margin-top: 20px; background: none; border: 1px solid #aaa; border-radius: 8px; padding: 6px 16px; cursor: pointer; color: #666; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>✊ 가위바위보 ✌️</h1>
+  <div class="score">
+    <div>나<b id="me">0</b></div>
+    <div>무승부<b id="tie">0</b></div>
+    <div>컴퓨터<b id="cpu">0</b></div>
+  </div>
+  <div class="arena">
+    <div><div class="hand" id="myHand">❔</div><div class="label">나</div></div>
+    <div class="vs">VS</div>
+    <div><div class="hand" id="cpuHand">❔</div><div class="label">컴퓨터</div></div>
+  </div>
+  <div class="result" id="result">선택하세요!</div>
+  <div class="buttons">
+    <button data-choice="0" title="가위">✌️</button>
+    <button data-choice="1" title="바위">✊</button>
+    <button data-choice="2" title="보">🖐️</button>
+  </div>
+  <button class="reset" id="reset">점수 초기화</button>
+</div>
+
+<script>
+  const HANDS = ["✌️", "✊", "🖐️"];
+  const score = { me: 0, tie: 0, cpu: 0 };
+  const $ = id => document.getElementById(id);
+  const buttons = document.querySelectorAll(".buttons button");
+
+  function play(my) {
+    const cpu = Math.floor(Math.random() * 3);
+    buttons.forEach(b => b.disabled = true);
+    $("myHand").textContent = "✊";
+    $("cpuHand").textContent = "✊";
+    $("myHand").classList.add("shake");
+    $("cpuHand").classList.add("shake");
+    $("result").textContent = "가위... 바위... 보!";
+    $("result").className = "result";
+
+    setTimeout(() => {
+      $("myHand").classList.remove("shake");
+      $("cpuHand").classList.remove("shake");
+      $("myHand").textContent = HANDS[my];
+      $("cpuHand").textContent = HANDS[cpu];
+
+      // 0=가위, 1=바위, 2=보 → (my - cpu + 3) % 3 : 0 무승부, 1 승리, 2 패배
+      const diff = (my - cpu + 3) % 3;
+      if (diff === 0) { score.tie++; setResult("비겼어요 🤝", "draw"); }
+      else if (diff === 1) { score.me++; setResult("이겼어요! 🎉", "win"); }
+      else { score.cpu++; setResult("졌어요 😢", "lose"); }
+
+      $("me").textContent = score.me;
+      $("tie").textContent = score.tie;
+      $("cpu").textContent = score.cpu;
+      buttons.forEach(b => b.disabled = false);
+    }, 500);
+  }
+
+  function setResult(text, cls) {
+    $("result").textContent = text;
+    $("result").className = "result " + cls;
+  }
+
+  buttons.forEach(b => b.addEventListener("click", () => play(Number(b.dataset.choice))));
+  $("reset").addEventListener("click", () => {
+    score.me = score.tie = score.cpu = 0;
+    ["me", "tie", "cpu"].forEach(k => $(k).textContent = 0);
+    $("myHand").textContent = $("cpuHand").textContent = "❔";
+    setResult("선택하세요!", "");
+  });
+</script>
+</body>
+</html>

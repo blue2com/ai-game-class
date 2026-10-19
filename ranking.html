@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실시간 랭킹</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    background: #1e1b3a; color: #fff; min-height: 100vh; padding: 32px 16px;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h1 { font-size: 2.4rem; margin-bottom: 6px; }
+  .sub { color: #aab; margin-bottom: 24px; }
+  .links { display: flex; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; justify-content: center; }
+  .links a { padding: 10px 20px; border-radius: 10px; background: #4a6cf7; color: #fff; text-decoration: none; font-weight: bold; }
+  .boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; width: min(1000px, 100%); }
+  .board { background: #2c2852; border-radius: 18px; padding: 24px; }
+  .board h2 { font-size: 1.6rem; margin-bottom: 4px; }
+  .board .rule { color: #aab; font-size: .9rem; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabs button { flex: 1; padding: 6px; border-radius: 8px; border: none; background: #3d3970; color: #ccd; cursor: pointer; font-size: .95rem; }
+  .tabs button.on { background: #4a6cf7; color: #fff; }
+  ol { list-style: none; }
+  li { display: flex; justify-content: space-between; padding: 10px 14px; font-size: 1.25rem; border-bottom: 1px solid #3d3970; }
+  li:nth-child(1) { background: rgba(255, 214, 0, .18); font-weight: bold; }
+  li:nth-child(2) { background: rgba(200, 200, 200, .12); }
+  li:nth-child(3) { background: rgba(205, 127, 50, .15); }
+  li.empty { color: #889; justify-content: center; font-size: 1rem; }
+  .updated { margin-top: 20px; color: #889; font-size: .85rem; }
+</style>
+</head>
+<body>
+  <h1>🏆 실시간 랭킹</h1>
+  <div class="sub" id="mode"></div>
+  <div class="links">
+    <a href="rps-rank.html">✌️ 가위바위보 랭킹전</a>
+    <a href="sudoku-rank.html">🧩 스도쿠 랭킹전</a>
+  </div>
+
+  <div class="boards">
+    <div class="board">
+      <h2>✌️ 가위바위보</h2>
+      <div class="rule">10라운드 승점 (승 3 · 무 1) · 3번 도전 중 최고점</div>
+      <ol id="rps"></ol>
+    </div>
+    <div class="board">
+      <h2>🧩 스도쿠</h2>
+      <div class="rule">완성 시간 + 실수 1개당 30초</div>
+      <div class="tabs" id="tabs">
+        <button data-level="쉬움">쉬움</button>
+        <button data-level="보통" class="on">보통</button>
+        <button data-level="어려움">어려움</button>
+      </div>
+      <ol id="sudoku"></ol>
+    </div>
+  </div>
+  <div class="updated" id="updated"></div>
+
+<script>
+  // ===== 랭킹 설정 =====
+  // 게임 파일과 같은 Apps Script 웹 앱 주소를 넣어 주세요. 비워 두면 이 PC의 기록만 보여요.
+  const RANK_URL = "";
+
+  const $ = id => document.getElementById(id);
+  const fmt = sec => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+  let sudokuLevel = "보통";
+
+  async function fetchTop(game, level, higherBetter) {
+    if (RANK_URL) {
+      const res = await fetch(RANK_URL + "?" + new URLSearchParams({ game, level }));
+      return (await res.json()).top || [];
+    }
+    let db = {};
+    try { db = JSON.parse(localStorage.getItem("rank-" + game)) || {}; } catch {}
+    return Object.values(db).filter(r => r.score !== null && r.level === level)
+      .sort((a, b) => higherBetter ? b.score - a.score : a.score - b.score).slice(0, 10);
+  }
+
+  async function fillList(id, game, level, higherBetter, format) {
+    const list = $(id);
+    try {
+      const top = await fetchTop(game, level, higherBetter);
+      list.innerHTML = "";
+      if (!top.length) { list.innerHTML = '<li class="empty">아직 기록이 없어요</li>'; return; }
+      top.forEach((r, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${["🥇", "🥈", "🥉"][i] || (i + 1) + "."} ${r.name}`;
+        const s = document.createElement("span");
+        s.textContent = format(Number(r.score));
+        li.appendChild(s);
+        list.appendChild(li);
+      });
+    } catch {
+      list.innerHTML = '<li class="empty">랭킹을 불러오지 못했어요</li>';
+    }
+  }
+
+  function refresh() {
+    $("mode").textContent = RANK_URL ? "반 전체 기록 · 10초마다 자동 새로고침" : "이 PC에 저장된 기록만 보여요";
+    fillList("rps", "rps", "", true, s => `${s}점`);
+    fillList("sudoku", "sudoku", sudokuLevel, false, fmt);
+    $("updated").textContent = "마지막 업데이트 " + new Date().toLocaleTimeString("ko-KR");
+  }
+
+  document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
+    document.querySelectorAll("#tabs button").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    sudokuLevel = b.dataset.level;
+    refresh();
+  });
+
+  refresh();
+  setInterval(refresh, 10000);
+</script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>스도쿠 랭킹전</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+    background: #eef2f7; min-height: 100vh; padding: 24px 16px;
+    display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; justify-content: center;
+    color: #222;
+  }
+  .main { display: flex; flex-direction: column; align-items: center; width: min(450px, 100%); }
+  h1 { margin-bottom: 6px; }
+  .player { color: #666; margin-bottom: 10px; }
+  .player button { background: none; border: none; color: #2a5bd7; cursor: pointer; text-decoration: underline; }
+  .controls { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; justify-content: center; }
+  .controls button, .controls select {
+    padding: 8px 14px; border-radius: 8px; border: 1px solid #bbb; background: #fff;
+    font-size: 1rem; cursor: pointer;
+  }
+  .controls button:hover { background: #e6ecff; }
+  .info { margin-bottom: 10px; font-size: 1rem; color: #555; }
+  #board {
+    display: grid; grid-template-columns: repeat(9, 1fr);
+    width: 100%; aspect-ratio: 1;
+    border: 3px solid #222; background: #fff;
+  }
+  .cell {
+    display: flex; align-items: center; justify-content: center;
+    font-size: clamp(1rem, 5vw, 1.6rem); border: 1px solid #ccc;
+    cursor: pointer; user-select: none;
+  }
+  .cell.fixed { font-weight: bold; color: #222; background: #f4f4f4; cursor: default; }
+  .cell.user { color: #2a5bd7; }
+  .cell.related { background: #eaf0ff; }
+  .cell.same { background: #cdd9ff; }
+  .cell.selected { background: #9fb6ff; }
+  .cell.error { color: #e33; background: #ffe3e3; }
+  .cell:nth-child(9n+3), .cell:nth-child(9n+6) { border-right: 2px solid #222; }
+  .cell:nth-child(n+19):nth-child(-n+27),
+  .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #222; }
+  .numpad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 12px; width: 100%; }
+  .numpad button { padding: 12px 0; font-size: 1.3rem; border-radius: 8px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  .numpad button:hover { background: #e6ecff; }
+  .msg { margin-top: 14px; font-size: 1.2rem; font-weight: bold; color: #2ecc71; min-height: 1.6rem; text-align: center; }
+  .rule { margin-top: 6px; font-size: .85rem; color: #999; }
+
+  .rank { background: #fff; border-radius: 16px; padding: 24px; width: min(360px, 100%); box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+  .rank h2 { font-size: 1.3rem; margin-bottom: 4px; }
+  .rank .mode { font-size: .8rem; color: #999; margin-bottom: 12px; }
+  .rank ol { list-style: none; }
+  .rank li { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #eee; }
+  .rank li:nth-child(1) { background: #fff6d6; font-weight: bold; }
+  .rank li:nth-child(2) { background: #f1f1f1; }
+  .rank li:nth-child(3) { background: #fbeee4; }
+  .rank li.me { outline: 2px solid #2a5bd7; }
+  .rank .empty { color: #aaa; justify-content: center; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(20,30,60,.85); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  .overlay.hidden { display: none; }
+  .overlay .box { background: #fff; border-radius: 20px; padding: 28px 24px; width: min(420px, 100%); text-align: center; }
+  .overlay input { width: 100%; padding: 12px; font-size: 1.2rem; border: 2px solid #ccc; border-radius: 10px; margin: 16px 0 4px; text-align: center; }
+  .overlay .err { color: #e74c3c; min-height: 1.4rem; font-size: .9rem; }
+  .overlay .big { margin-top: 8px; padding: 12px 28px; font-size: 1.1rem; border: none; border-radius: 10px; background: #2a5bd7; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<!-- 입장 화면 -->
+<div class="overlay" id="entry">
+  <div class="box">
+    <h1>🧩 스도쿠 랭킹전</h1>
+    <p>빨리, 정확하게 풀수록 순위가 올라가요!<br>기록 = 완성 시간 + 실수 1개당 30초</p>
+    <input id="nameInput" maxlength="12" placeholder="이름을 입력하세요">
+    <div class="err" id="entryErr"></div>
+    <button class="big" id="enterBtn">입장하기</button>
+  </div>
+</div>
+
+<div class="main">
+  <h1>🧩 스도쿠 랭킹전</h1>
+  <div class="player">👤 <span id="playerName"></span> <button id="changeName">이름 변경</button></div>
+  <div class="controls">
+    <select id="level">
+      <option value="30">쉬움</option>
+      <option value="40" selected>보통</option>
+      <option value="50">어려움</option>
+    </select>
+    <button id="newGame">새 게임</button>
+    <button id="solve">정답 보기</button>
+  </div>
+  <div class="info">⏱ <span id="timer">00:00</span> · 실수 <span id="mistakes">0</span> (+<span id="penalty">0</span>초)</div>
+  <div id="board"></div>
+  <div class="numpad" id="numpad"></div>
+  <div class="msg" id="msg"></div>
+  <div class="rule">정답 보기를 누른 판은 기록되지 않아요</div>
+</div>
+
+<div class="rank">
+  <h2>🏆 <span id="rankLevel">보통</span> 랭킹 TOP 10</h2>
+  <div class="mode" id="mode"></div>
+  <ol id="rankList"></ol>
+</div>
+
+<script>
+  // ===== 랭킹 설정 =====
+  // Apps Script 웹 앱 주소를 넣으면 반 전체 랭킹이 됩니다. 비워 두면 이 PC에만 기록돼요.
+  const RANK_URL = "";
+  const GAME = "sudoku";
+  const PENALTY = 30;  // 실수 1개당 추가 시간(초)
+
+  const $ = id => document.getElementById(id);
+  const levelName = () => $("level").selectedOptions[0].textContent;
+  const fmt = sec => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+
+  // ---------- 랭킹 서버 (RANK_URL 없으면 이 PC에 저장) ----------
+  async function api(params) {
+    params = { game: GAME, level: levelName(), ...params };
+    if (RANK_URL) {
+      const res = await fetch(RANK_URL + "?" + new URLSearchParams(params));
+      return res.json();
+    }
+    return localApi(params);
+  }
+
+  function localApi(p) {
+    let db = {};
+    try { db = JSON.parse(localStorage.getItem("rank-" + GAME)) || {}; } catch {}
+    const key = p.name + "|" + p.level, row = db[key];
+    const save = () => { try { localStorage.setItem("rank-" + GAME, JSON.stringify(db)); } catch {} };
+    if (p.action === "start") {
+      if (row) row.attempts++; else db[key] = { name: p.name, level: p.level, score: null, attempts: 1 };
+      save();
+      return { ok: true };
+    }
+    if (p.action === "add") {
+      const s = Number(p.score);
+      if (row.score === null || s < row.score) row.score = s;
+      save();
+      return { ok: true, best: row.score };
+    }
+    const top = Object.values(db).filter(r => r.score !== null && r.level === p.level)
+      .sort((a, b) => a.score - b.score).slice(0, 10);
+    return { ok: true, top };
+  }
+
+  async function showRanking() {
+    $("rankLevel").textContent = levelName();
+    $("mode").textContent = RANK_URL ? "반 전체 랭킹 (자동 새로고침)" : "이 PC에만 저장되는 랭킹";
+    const list = $("rankList");
+    try {
+      const { top = [] } = await api({});
+      list.innerHTML = "";
+      if (!top.length) { list.innerHTML = '<li class="empty">아직 기록이 없어요</li>'; return; }
+      top.forEach((r, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${["🥇", "🥈", "🥉"][i] || (i + 1) + "."} ${r.name}`;
+        const s = document.createElement("span");
+        s.textContent = fmt(Number(r.score));
+        li.appendChild(s);
+        if (r.name === player) li.classList.add("me");
+        list.appendChild(li);
+      });
+    } catch {
+      list.innerHTML = '<li class="empty">랭킹을 불러오지 못했어요</li>';
+    }
+  }
+
+  // ---------- 입장 ----------
+  let player = "";
+
+  function enter() {
+    const name = $("nameInput").value.trim();
+    if (!name) { $("entryErr").textContent = "이름을 입력하세요"; return; }
+    player = name;
+    try { localStorage.setItem("player", name); } catch {}
+    $("playerName").textContent = name;
+    $("entry").classList.add("hidden");
+    newGame();
+  }
+
+  try { $("nameInput").value = localStorage.getItem("player") || ""; } catch {}
+  $("enterBtn").onclick = enter;
+  $("nameInput").addEventListener("keydown", e => { if (e.key === "Enter") enter(); });
+  $("changeName").onclick = () => { clearInterval(timerId); $("entry").classList.remove("hidden"); };
+
+  // ---------- 퍼즐 생성 ----------
+  let solution = [], puzzle = [], current = [], selected = -1, mistakes = 0;
+  let seconds = 0, timerId = null, finished = true, revealed = false;
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function canPlace(g, idx, n) {
+    const r = Math.floor(idx / 9), c = idx % 9;
+    const br = r - r % 3, bc = c - c % 3;
+    for (let i = 0; i < 9; i++) {
+      if (g[r * 9 + i] === n || g[i * 9 + c] === n) return false;
+      if (g[(br + Math.floor(i / 3)) * 9 + bc + i % 3] === n) return false;
+    }
+    return true;
+  }
+
+  // 백트래킹으로 빈칸을 채움
+  function fill(g) {
+    const idx = g.indexOf(0);
+    if (idx === -1) return true;
+    for (const n of shuffle([1,2,3,4,5,6,7,8,9])) {
+      if (canPlace(g, idx, n)) {
+        g[idx] = n;
+        if (fill(g)) return true;
+        g[idx] = 0;
+      }
+    }
+    return false;
+  }
+
+  function newGame() {
+    solution = Array(81).fill(0);
+    fill(solution);
+    puzzle = solution.slice();
+    shuffle([...Array(81).keys()]).slice(0, Number($("level").value)).forEach(i => puzzle[i] = 0);
+    current = puzzle.slice();
+    selected = -1; mistakes = 0; seconds = 0; finished = false; revealed = false;
+    $("mistakes").textContent = 0;
+    $("penalty").textContent = 0;
+    $("msg").textContent = "";
+    $("timer").textContent = "00:00";
+    clearInterval(timerId);
+    timerId = setInterval(() => { seconds++; $("timer").textContent = fmt(seconds); }, 1000);
+    api({ action: "start", name: player }).catch(() => {});
+    render();
+    showRanking();
+  }
+
+  // ---------- 화면 그리기 ----------
+  function render() {
+    const board = $("board");
+    board.innerHTML = "";
+    const sr = Math.floor(selected / 9), sc = selected % 9;
+    const selVal = selected >= 0 ? current[selected] : 0;
+
+    current.forEach((v, i) => {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      const r = Math.floor(i / 9), c = i % 9;
+      if (puzzle[i]) cell.classList.add("fixed");
+      else if (v) cell.classList.add("user");
+      if (selected >= 0) {
+        const sameBox = Math.floor(r / 3) === Math.floor(sr / 3) && Math.floor(c / 3) === Math.floor(sc / 3);
+        if (r === sr || c === sc || sameBox) cell.classList.add("related");
+        if (selVal && v === selVal) cell.classList.add("same");
+        if (i === selected) cell.classList.add("selected");
+      }
+      if (v && !puzzle[i] && v !== solution[i]) cell.classList.add("error");
+      cell.textContent = v || "";
+      cell.addEventListener("click", () => { selected = i; render(); });
+      board.appendChild(cell);
+    });
+  }
+
+  function input(n) {
+    if (finished || selected < 0 || puzzle[selected]) return;
+    current[selected] = n;
+    if (n && n !== solution[selected]) {
+      mistakes++;
+      $("mistakes").textContent = mistakes;
+      $("penalty").textContent = mistakes * PENALTY;
+    }
+    render();
+    if (current.every((v, i) => v === solution[i])) finish();
+  }
+
+  async function finish() {
+    finished = true;
+    clearInterval(timerId);
+    const score = seconds + mistakes * PENALTY;
+    $("msg").style.color = "#2ecc71";
+    $("msg").textContent = `🎉 완성! 기록 ${fmt(score)} 저장 중...`;
+    try {
+      const res = await api({ action: "add", name: player, score });
+      const best = Number(res.best);
+      $("msg").textContent = `🎉 완성! 기록 ${fmt(score)}` + (best && best < score ? ` (최고 ${fmt(best)})` : " · 최고 기록!");
+    } catch {
+      $("msg").textContent = `🎉 완성! 기록 ${fmt(score)} (저장 실패)`;
+    }
+    showRanking();
+  }
+
+  // ---------- 숫자 패드 / 키보드 ----------
+  for (let n = 1; n <= 9; n++) {
+    const b = document.createElement("button");
+    b.textContent = n;
+    b.onclick = () => input(n);
+    $("numpad").appendChild(b);
+  }
+  const erase = document.createElement("button");
+  erase.textContent = "⌫";
+  erase.onclick = () => input(0);
+  $("numpad").appendChild(erase);
+
+  document.addEventListener("keydown", e => {
+    if (!$("entry").classList.contains("hidden")) return;
+    if (e.key >= "1" && e.key <= "9") input(Number(e.key));
+    else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") input(0);
+    else if (selected >= 0) {
+      const move = { ArrowUp: -9, ArrowDown: 9, ArrowLeft: -1, ArrowRight: 1 }[e.key];
+      if (move) {
+        const next = selected + move;
+        if (next >= 0 && next < 81) { selected = next; render(); e.preventDefault(); }
+      }
+    }
+  });
+
+  $("newGame").onclick = newGame;
+  $("level").onchange = newGame;
+  $("solve").onclick = () => {
+    if (finished) return;
+    current = solution.slice();
+    finished = true; revealed = true;
+    clearInterval(timerId);
+    $("msg").style.color = "#555";
+    $("msg").textContent = "정답을 공개했어요 (기록 없음)";
+    render();
+  };
+
+  showRanking();
+  setInterval(showRanking, 15000);  // 친구들 기록도 15초마다 새로고침
+</script>
+</body>
+</html>
